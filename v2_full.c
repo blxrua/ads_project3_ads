@@ -4,6 +4,18 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#ifdef BENCH
+#include <stdlib.h>
+#include <windows.h>
+static double bench_freq;
+static long long bench_nodes;
+static double bench_now(void) {
+    LARGE_INTEGER c;
+    QueryPerformanceCounter(&c);
+    return (double)c.QuadPart * 1000.0 / bench_freq;
+}
+#endif
+
 #define MAXM 105
 #define BIGW 100001
 
@@ -74,6 +86,10 @@ static int upper_bound(const uint64_t cand[2]) {
 static void dfs(uint64_t cand[2], int curScore) {
     uint64_t nxt[2];
     int i, j, v = -1, bd = -1, d;
+
+#ifdef BENCH
+    ++bench_nodes;
+#endif
 
     if (curScore + upper_bound(cand) <= bestScore) return;
 
@@ -163,6 +179,23 @@ int main(void) {
     for (i = 0; i < M; ++i)
         if (deg[i] == 0) mask_add(answer, i);   /* isolated: always safe */
 
+#ifdef BENCH
+    {
+        int rep, reps = getenv("BENCH_REPEAT") ? atoi(getenv("BENCH_REPEAT")) : 5;
+        uint64_t iso[2] = {answer[0], answer[1]};
+        LARGE_INTEGER f;
+
+        QueryPerformanceFrequency(&f);
+        bench_freq = (double)f.QuadPart;
+
+        for (rep = 0; rep < reps; ++rep) {
+            double t0, t1;
+
+            answer[0] = iso[0];
+            answer[1] = iso[1];
+            bench_nodes = 0;
+            t0 = bench_now();
+#endif
     /* Solve each component independently. */
     for (i = 0; i < M; ++i) visited[i] = 0;
     for (s = 0; s < M; ++s) {
@@ -192,6 +225,12 @@ int main(void) {
         answer[0] |= bestSet[0];
         answer[1] |= bestSet[1];
     }
+#ifdef BENCH
+            t1 = bench_now();
+            fprintf(stderr, "BENCH %.6f %.0f\n", t1 - t0, (double)bench_nodes);
+        }
+    }
+#endif
 
     cn = 0;
     total = 0;
