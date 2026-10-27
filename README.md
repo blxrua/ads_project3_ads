@@ -90,6 +90,13 @@ python test_special.py   # 5 组特殊用例：同数不同价、同数同价、
 py -3.12 -m pip install -r bench/requirements.txt
 py -3.12 bench/gen.py    # 可选：重新生成实例与标注
 py -3.12 bench/run.py    # 编译 -DBENCH 版本、计时、校验、写 CSV
+
+# full generator benchmark：2460 组实例，标签与输入行序全部置换
+py -3.12 bench/gen.py --suite full
+py -3.12 bench/run.py --suite full
+
+# 只跑抽样子集（用于估时）：80 个均匀抽样实例，结果写到 *_sample80.csv
+py -3.12 bench/run.py --suite full --sample 80 --repeat 1 --timeout 3
 ```
 
 `test_random.py` 会检查：ID 递增、无重复、都在篮子里、两两不冲突、
@@ -135,7 +142,29 @@ benchmark 说明：
   而 v3 只用 0.032 ms。
 - v2 综合最稳；v3 在规则图上最快；v1 在随机稀疏图和大分量上会指数爆炸。
 
-## 8. 复杂度
+## 8. full 生成器套件
+
+light 的六个族是“理想形态”，顶点编号也沿着结构排列，容易高估固定顺序分支。
+full 套件专门补上这两点：
+
+- **规模**：M = 10, 20, ..., 100；10 个种子；3 种价格分布。
+- **规范族**（6 个）：path、cycle、star、tree、sparse100、components，
+  每个规模/分布/种子都生成，共 1800 组。
+- **机制族**（4 个，M = 20/40/60/80/100）：
+  - `groups`：若干互相重叠的小团，模拟“忌口组”；
+  - `sbm`：两层社区，叶社区稠密、父社区中等、跨社区稀疏；
+  - `coreper`：小核心全连接，其余点挂 1~3 个核心点；
+  - `banded`：先连最近邻形成带宽，再补少量长程边。
+  共 600 组。
+- **特殊**：K10,10 与全孤立点，共 60 组。
+- **标签置换**：每个实例都做随机 ID 双射，并打乱水果行、提示行及提示方向；
+  结构不变，但“下标顺序”不再携带结构信息。
+- **标注**：SCIP，`limits/gap = 0`，与 light 相同。
+
+产物为 `bench/instances_full/`、`bench/manifest_full.json`、
+`bench/results_full.csv`、`bench/summary_full.csv`。
+
+## 9. 复杂度
 
 - 时间：最坏 O(2^M)（M <= 100）；分量分解 + 精确上界后实测搜索量很小。
 - 每次上界计算 O(V + E)，V、E <= 100。

@@ -1,3 +1,6 @@
 *.exe
 __pycache__/
 .vscode/
+bench/*_sample*.csv
+bench/pilot.log
+bench/full_run.log

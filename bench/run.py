@@ -1,17 +1,18 @@
-"""Run the light benchmark: four versions, in-program timer, oracle labels.
+"""Run a benchmark suite: four versions, in-program timer, oracle labels.
 
-Builds v1..v4 with -DBENCH, runs each instance BENCH_REPEAT times, checks
-every answer against bench/manifest.json, and writes:
+Builds v1..v4 with -DBENCH, runs each instance, checks every answer against
+the suite manifest, and writes:
 
-    bench/results_light.csv   per instance / version
-    bench/summary_light.csv   per family / size / version
+    bench/results_<suite>.csv   per instance / version
+    bench/summary_<suite>.csv   per family / size / version
 
 Timing comes from QueryPerformanceCounter inside the program, so process
 startup is not counted.  The median, p95 and worst of the per-instance
 medians are reported, plus the DFS node count.
 
 Usage:
-    py -3.12 bench/run.py [--repeat N] [--no-build] [--filter TEXT]
+    py -3.12 bench/run.py [--suite light|full] [--repeat N] [--no-build]
+                          [--filter TEXT] [--sample N] [--versions 1,2,3,4]
 """
 
 import argparse
@@ -25,7 +26,10 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 BIN = os.path.join(HERE, "bin")
-MANIFEST = os.path.join(HERE, "manifest.json")
+MANIFESTS = {
+    "light": os.path.join(HERE, "manifest.json"),
+    "full": os.path.join(HERE, "manifest_full.json"),
+}
 
 SOURCES = {
     1: "v1_steps123.c",
@@ -33,7 +37,7 @@ SOURCES = {
     3: "v3_ablate_step4.c",
     4: "v4_ablate_step5.c",
 }
-VERSIONS = [1, 2, 3, 4]
+ALL_VERSIONS = [1, 2, 3, 4]
 
 
 def build():
@@ -145,12 +149,22 @@ def main():
                     help="repeat only if the first solve is below this (ms)")
     ap.add_argument("--timeout", type=float, default=5.0,
                     help="kill one run after this many seconds (censored)")
+    ap.add_argument("--suite", choices=["light", "full"], default="light")
+    ap.add_argument("--versions", default="1,2,3,4",
+                    help="comma-separated subset, e.g. 1,4 for a pilot")
+    ap.add_argument("--sample", type=int, default=0,
+                    help="evenly spaced subset of N instances (0 = all)")
     ap.add_argument("--no-build", action="store_true")
     ap.add_argument("--filter", default="")
     args = ap.parse_args()
 
+    versions = [int(v) for v in args.versions.split(",") if v.strip()]
+    for v in versions:
+        if v not in SOURCES:
+            sys.exit("unknown version %d" % v)
+
     if args.no_build:
-        exes = {v: os.path.join(BIN, "v%d.exe" % v) for v in VERSIONS}
+        exes = {v: os.path.join(BIN, "v%d.exe" % v) for v in versions}
         for exe in exes.values():
             if not os.path.exists(exe):
                 sys.exit("missing %s (run without --no-build)" % exe)
@@ -158,12 +172,15 @@ def main():
         print("building ...")
         exes = build()
 
-    with open(MANIFEST, "r", encoding="utf-8") as f:
+    with open(MANIFESTS[args.suite], "r", encoding="utf-8") as f:
         cases = json.load(f)["instances"]
     if args.filter:
         cases = [c for c in cases if args.filter in c["name"]]
+    if args.sample and args.sample < len(cases):
+        step = len(cases) / float(args.sample)
+        cases = [cases[int(i * step)] for i in range(args.sample)]
     print("%d instances x %d versions x %d repeats"
-          % (len(cases), len(VERSIONS), args.repeat))
+          % (len(cases), len(versions), args.repeat))
 
     rows = []
     summary = {}
@@ -174,7 +191,7 @@ def main():
         case["abspath"] = os.path.join(HERE, case["path"].replace(
             "bench/", "", 1))
         price, edges = parse_input(case["abspath"])
-        for v in VERSIONS:
+        for v in versions:
             out, times, nodes, killed = measure(exes[v], case, args)
             if killed:
                 ok, why = False, "timeout > %.1fs" % args.timeout
@@ -191,6 +208,8 @@ def main():
                     wrong += 1
                     print("WRONG %s v%d: %s" % (case["name"], v, why))
             rows.append({
+                "suite": case.get("suite", args.suite),
+                "layout": case.get("layout", "aligned"),
                 "family": case["family"],
                 "size": case["size"],
                 "mode": case["mode"],
@@ -202,21 +221,23 @@ def main():
                 "ok": int(ok),
                 "timed_out": int(killed),
             })
-            key = (case["family"], case["size"], v)
+            key = (case.get("suite", args.suite), case["family"],
+                   case["size"], v)
             summary.setdefault(key, []).append((med, max_ms, nodes, killed))
         if idx % 10 == 0 or idx == len(cases):
             print("  %d/%d %s" % (idx, len(cases), case["name"]), flush=True)
 
-    with open(os.path.join(HERE, "results_light.csv"), "w",
+    suffix = "_sample%d" % args.sample if args.sample else ""
+    with open(os.path.join(HERE, "results_%s%s.csv" % (args.suite, suffix)), "w",
               newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
 
-    with open(os.path.join(HERE, "summary_light.csv"), "w",
-              newline="", encoding="utf-8") as f:
+    with open(os.path.join(HERE, "summary_%s%s.csv" % (args.suite, suffix)),
+              "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["family", "size", "version", "instances",
+        w.writerow(["suite", "family", "size", "version", "instances",
                     "median_ms", "p95_ms", "max_ms", "median_nodes",
                     "timeouts"])
         for key in sorted(summary):
@@ -225,20 +246,20 @@ def main():
             maxs = [x[1] for x in vals]
             nodes = [x[2] for x in vals]
             to = sum(1 for x in vals if x[3])
-            w.writerow([key[0], key[1], key[2], len(vals),
+            w.writerow([key[0], key[1], key[2], key[3], len(vals),
                         "%.6f" % statistics.median(meds),
                         "%.6f" % p95(meds),
                         "%.6f" % max(maxs),
                         statistics.median(nodes), to])
 
     print("\nsummary (median of per-instance medians, ms; to = timeouts)")
-    print("%-12s %4s %3s %10s %10s %10s %4s"
-          % ("family", "size", "ver", "median", "p95", "max", "to"))
+    print("%-5s %-12s %4s %3s %10s %10s %10s %4s"
+          % ("suite", "family", "size", "ver", "median", "p95", "max", "to"))
     for key in sorted(summary):
         vals = summary[key]
         meds = [x[0] for x in vals]
-        print("%-12s %4d %3d %10.4f %10.4f %10.4f %4d"
-              % (key[0], key[1], key[2], statistics.median(meds),
+        print("%-5s %-12s %4d %3d %10.4f %10.4f %10.4f %4d"
+              % (key[0], key[1], key[2], key[3], statistics.median(meds),
                  p95(meds), max(x[1] for x in vals),
                  sum(1 for x in vals if x[3])))
 
