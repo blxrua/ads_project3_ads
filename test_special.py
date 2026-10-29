@@ -5,7 +5,7 @@ import os
 import subprocess
 
 EXES = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "v%d.exe" % i)
-        for i in range(1, 5)]
+        for i in range(1, 6)]
 OUTDIR = "special"
 
 CASES = [

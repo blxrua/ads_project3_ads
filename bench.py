@@ -1,9 +1,9 @@
 """
-Performance comparison of the four Safe Fruit versions on large sparse graphs.
+Performance comparison of the five Safe Fruit versions on large sparse graphs.
 
 Every case has M <= 100 fruits and N <= 100 tips (the limits of the problem).
 The script regenerates all cases in memory, times each executable and checks
-that all four versions agree on (count, total price).
+that all five versions agree on (count, total price).
 
 Usage:  python bench.py
 """
@@ -15,7 +15,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe"]
+EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe", "v5.exe"]
 rng = random.Random(20261028)
 
 
@@ -98,7 +98,8 @@ def run(exe, data):
 
 
 def main():
-    print("%-24s %9s %9s %9s %9s   count  price" % ("case", *EXES))
+    print("%-24s %s   count  price" %
+          ("case", " ".join("%9s" % exe for exe in EXES)))
     for name, M, edges, prices in build_cases():
         data = make_input(M, edges, prices)
         row = []
@@ -111,9 +112,9 @@ def main():
             print("MISMATCH on %s: %r" % (name, answers))
             sys.exit(1)
         cnt, price = answers.pop()
-        print("%-24s %8.3fs %8.3fs %8.3fs %8.3fs   %-5d  %d"
-              % (name, row[0], row[1], row[2], row[3], cnt, price))
-    print("\nAll four versions agree on every case.")
+        print("%-24s %s   %-5d  %d" %
+              (name, " ".join("%8.3fs" % t for t in row), cnt, price))
+    print("\nAll five versions agree on every case.")
 
 
 if __name__ == "__main__":
