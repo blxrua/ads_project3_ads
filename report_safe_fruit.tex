@@ -1,0 +1,677 @@
+% Safe Fruit -- PTA Programming Assignment Report
+% Final program: v8_cycle_tree_dp.c (C99)
+
+\documentclass[12pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\usepackage{indentfirst}
+\usepackage{hyperref}
+
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{1pt}
+
+\titleformat{\chapter}
+  {\normalfont\LARGE\bfseries}
+  {\chaptername\ \thechapter.\quad}
+  {0pt}
+  {}
+\titlespacing*{\chapter}{0pt}{0pt}{20pt}
+
+\titleformat{\section}
+  {\normalfont\large\bfseries}
+  {\thesection}
+  {1em}
+  {}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries}
+  {\thesubsection}
+  {1em}
+  {}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+
+\setlist[itemize]{left=0pt,topsep=4pt,partopsep=0pt,itemsep=2pt}
+\setlist[enumerate]{left=0pt,topsep=4pt,partopsep=0pt,itemsep=2pt}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\setcounter{tocdepth}{1}
+
+\begin{document}
+
+\begin{center}
+{\Huge\bfseries Safe Fruit:\\[0.35cm]
+ Exact Branch-and-Bound\\[0.35cm]
+ with Forest DP\par}
+\vspace{1.3cm}
+\Large Course: Data Structures and Algorithms\\[.35cm]
+\Large Project: Safe Fruit\\[.35cm]
+\Large Implementation: C99\\[.35cm]
+\Large Completion Date: October 30, 2026\\[1.2cm]
+\Large You Longbin \quad 3250106392\\[.4cm]
+\Large Huang Yirui \quad 3250104426\\[.4cm]
+\Large Chen Zhikun \quad 3250100883\\[1.2cm]
+\Large Generated with \LaTeX
+\end{center}
+\newpage
+{\small
+\tableofcontents
+}
+\newpage
+
+\chapter{Introduction}
+
+\section{Description}
+
+The input describes a basket of fruits and a list of warnings.  Each warning
+forbids one pair of fruits from being eaten together.  We must choose a subset
+of the basket such that no warned pair is chosen.  Among all such subsets, the
+program must first maximize the number of chosen fruits and then minimize their
+total price.  The problem guarantees that the optimal answer is unique.
+
+The input format is:
+\begin{itemize}
+\item the first line contains $N$ warnings and $M$ basket fruits;
+\item the next $N$ lines each contain a forbidden pair of fruit IDs;
+\item the next $M$ lines each contain a fruit ID and its price.
+\end{itemize}
+Here $N,M\le 100$, every price is between 1 and 1000, and fruit IDs are printed
+with three digits.  The output has exactly three lines: the number of chosen
+fruits, their IDs in increasing order separated by exactly one space, and the
+total price.  There must be no trailing space on the ID line.
+
+Let each basket fruit be a vertex and each warning between two basket fruits be
+an undirected edge.  A feasible choice is an independent set of this graph.
+The task is therefore a \emph{lexicographic maximum independent set} problem:
+maximize the cardinality first, then minimize the sum of vertex prices.
+
+The lexicographic order is important.  A greedy rule that picks the cheapest
+fruit first can fail.  For example, on the path $1-2-3$ with prices
+$p_1=100$, $p_2=1$, $p_3=100$, the cheapest fruit is 2, but choosing it gives
+only one fruit; the optimal choice is $\{1,3\}$ with two fruits and total price
+200.  The program must therefore optimize the count before the price, not the
+price alone.
+
+General maximum independent set is NP-hard, so no polynomial-time exact
+algorithm is expected.  The assignment limits $M$ to 100, which makes an exact
+branch-and-bound search with strong pruning practical.
+
+A warning may mention a fruit that is not in the basket.  Such a warning does
+not constrain the selection, and the program ignores it defensively.  The PTA
+sample does not actually contain one: its first 16 lines are warnings, and the
+lines \code{020 99} and \code{019 99} that follow are fruit lines, meaning that
+fruits 020 and 019 each cost 99.  The special tests in
+Chapter~\ref{ch:testing} include outside warnings explicitly.
+
+The sample has 16 warnings and 20 fruits.  The warnings form three nontrivial
+components: the edge $001-002$; the 6-cycle
+$003-004-005-006-007-008-003$; and the tree on $009$--$018$, where 009 is
+adjacent to 010, 011, 012, 013, and 010-014, 011-015, 012-016, 012-017,
+013-018 are the remaining edges.  Fruits 019 and 020 have no warnings and cost
+99 each.  The sample answer is
+\begin{verbatim}
+002 004 006 008 009 014 015 016 017 018 019 020
+\end{verbatim}
+with total price 239.  The choices 002, 004, 006, and 008 come from the first
+two components; 009 and 014--018 come from the tree; 019 and 020 are isolated
+and are selected because they increase the count.  The price check is
+$1+4+5+1+10+5+6+3+2+4+99+99=239$.  This is a useful sanity check for the score
+encoding and for the isolated-fruit rule.
+
+The final program should be exact, implement the count-first, price-second
+objective, print the required format, and run comfortably for $M\le100$.  The
+submitted program is \code{v8_cycle_tree_dp.c}.  Earlier versions are kept in
+the repository because they were used to validate each optimization during
+development; they are not alternative answers.
+
+\section{Overview of the Implementation}
+
+The program is organized around four components.
+\begin{enumerate}
+\item \textbf{Graph construction and PTA input.}  The program reads $N$ and $M$,
+      maps the three-digit IDs to internal indices, and builds both a bitset
+      adjacency and adjacency lists.  Isolated fruits are added to the answer
+      directly.  A warning with an endpoint outside the basket is ignored; this
+      is defensive, because the sample has no such warning.
+\item \textbf{Score encoding and search.}  Each fruit receives the weight
+      $B-p_v$, so one integer captures both objectives.  The search uses two
+      64-bit masks for the candidate and selected sets, a matching upper bound,
+      and a dynamic maximum-degree pivot.
+\item \textbf{Structural decomposition.}  Original connected components are
+      solved independently.  A tree component uses tree DP; a cyclic component
+      uses branch and bound, with residual-forest DP when the candidate graph
+      becomes acyclic.  Version 8 chooses when to perform the forest check.
+\item \textbf{Output.}  The selected IDs are sorted in increasing order and
+      printed with \texttt{\%03d}; a space is printed before every ID except
+      the first, so the line has no trailing space.  The second line is followed
+      by the total price on the third line.
+\end{enumerate}
+The count on the first line is the number of selected IDs, and the price is
+their sum.  The input is assumed to be a simple conflict graph, as the
+assignment states that there are no duplicated tips; self-loops are not
+specified.
+
+The final program is compiled with \code{gcc -O2 -std=c99}; the optional
+\code{-DBENCH} macro is used only for local timing and is not needed by the
+judge.  Chapter~\ref{ch:algorithm} specifies the algorithm and its correctness;
+Chapter~\ref{ch:testing} is the test report; Chapter~\ref{ch:analysis} gives the
+analysis and comments; the appendix gives the source location.
+
+\chapter{Algorithm Specification}\label{ch:algorithm}
+
+\section{Encoding the Two Objectives}
+
+Let $p_v$ be the price of fruit $v$.  Define
+\[
+B=100001,\qquad w_v=B-p_v,\qquad W(S)=B|S|-\sum_{v\in S}p_v .
+\]
+The maximum possible total price is $100\times1000=100000<B$, and every
+$w_v$ is positive.
+
+\begin{lemma}
+For any two feasible sets $A$ and $C$, $W(A)>W(C)$ if and only if
+\[
+\Bigl(|A|,-\sum_{v\in A}p_v\Bigr)
+\quad\text{is lexicographically greater than}\quad
+\Bigl(|C|,-\sum_{v\in C}p_v\Bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+If $|A|>|C|$, then
+\[
+W(A)-W(C)=B(|A|-|C|)-\Bigl(\sum_{A}p-\sum_{C}p\Bigr)
+\ge B-1000|A|\ge B-100000=1>0 .
+\]
+If $|A|=|C|$, then $W(A)-W(C)=\sum_{C}p-\sum_{A}p$, so a larger score means a
+smaller total price.
+\end{proof}
+
+Thus maximizing the single integer $W$ is exactly equivalent to the required
+lexicographic objective.  The largest possible score is at most
+$100B=10{,}000{,}100$, which fits safely in a signed 32-bit integer.  The score
+is additive over disjoint components and over selected vertices, so the same
+encoding can be used by component decomposition and tree DP.
+
+\section{Branch and Bound}
+
+A search state consists of the selected set $S$, its score $s$, and the
+candidate set $C$ of fruits that are compatible with every vertex of $S$.
+For a pivot $v\in C$, every feasible completion belongs to exactly one of two
+cases:
+\[
+\begin{array}{ll}
+\text{take }v:& (S\cup\{v\},\ s+w_v,\ C\setminus(\{v\}\cup N(v))),\\
+\text{skip }v:& (S,\ s,\ C\setminus\{v\}).
+\end{array}
+\]
+The take branch is searched first.  This is a heuristic for finding a good
+incumbent early; it is not required for correctness.
+
+The search is pruned with an upper bound $\operatorname{UB}(C)$ on the score
+that can still be added from $C$.  If $s+\operatorname{UB}(C)\le W_{\text{best}}$,
+the state cannot strictly improve the incumbent and is discarded.  Equality is
+safe because the encoded score already includes the price tie-break and any
+optimal set is acceptable.
+
+The pivot is chosen dynamically as a vertex with the largest number of
+neighbors still in $C$.  Its take branch removes the pivot and all its remaining
+neighbors, which often reduces the search tree.  Its skip branch removes only
+the pivot, so the rule is a heuristic rather than a guarantee.  A static
+degree order is cheaper per node but becomes less informative as candidates
+disappear; the final program uses the dynamic rule.
+
+\section{Matching Upper Bound}
+
+Summing all candidate weights is a valid but loose upper bound.  A tighter
+bound is obtained from a greedy matching $Q$ in the induced conflict graph
+$G[C]$.  Let $U$ be the unmatched candidates.  Then
+\[
+\operatorname{UB}(C)=\sum_{(u,v)\in Q}\max(w_u,w_v)+\sum_{u\in U}w_u .
+\]
+
+\begin{lemma}
+$\operatorname{UB}(C)$ is an upper bound on the score of any independent subset
+of $C$.
+\end{lemma}
+
+\begin{proof}
+The pairs of $Q$ are disjoint.  An independent set can contain at most one
+endpoint of each matched pair, so the contribution of a pair is at most the
+larger of its two weights.  An unmatched vertex contributes at most its own
+weight.  Conflicts between different pairs are ignored, which can only make the
+bound larger.  Hence the sum is an upper bound.
+\end{proof}
+
+No maximum matching is required for correctness.  The implementation builds the
+matching greedily, scanning vertices in decreasing initial degree order.  A
+different order changes the tightness of the bound but not its validity.
+
+\section{Component Decomposition}
+
+If the conflict graph has connected components $G_1,\ldots,G_k$, then there are
+no edges between different components, and
+\[
+\operatorname{OPT}(G)=\sum_{i=1}^{k}\operatorname{OPT}(G_i)
+\]
+for the additive score.  The program solves each original component separately
+and combines the selected masks.  This avoids exploring the Cartesian product
+of independent local choices, which is especially valuable when several
+components have many tied local optima.
+
+The program does not re-split arbitrary cyclic candidate graphs at every
+recursive node.  However, the forest routine described below can solve several
+residual trees together inside one component.
+
+\section{Tree DP}
+
+A connected simple graph with $n$ vertices and $n-1$ edges is a tree.  For a
+rooted tree, let $T(v)$ be the best score of the subtree rooted at $v$ when $v$
+is selected, and $F(v)$ the best score when $v$ is excluded.  Then
+\[
+T(v)=w_v+\sum_{u\text{ child of }v}F(u),\qquad
+F(v)=\sum_{u\text{ child of }v}\max\{T(u),F(u)\}.
+\]
+The values are computed in reverse traversal order and a choice is reconstructed
+from the root downward.  A selected parent forces every child to be excluded;
+otherwise the better child state is chosen.  The optimum of the tree is
+$\max\{T(\text{root}),F(\text{root})\}$.
+
+This DP is exact by induction on the height of the subtree.  The final program
+applies it to every original component that is a tree, so paths, stars, and
+trees are solved without branching.
+
+\section{Residual Forest DP}
+
+Branching removes vertices, so a cyclic component can become a forest.  During
+the search, the program tests the current candidate graph $G[C]$.  A traversal
+checks acyclicity and establishes parent pointers.  If a cycle remains, ordinary
+search continues.  If $G[C]$ is a forest, the same take/skip recurrence solves
+every residual tree, the resulting score is added to $s$, and that search branch
+ends immediately.
+
+This substitution is exact.  Every residual candidate is compatible with $S$,
+there are no edges between different residual trees, and the DP is exact on each
+tree.  The algorithm never approximates a cyclic graph by a tree; it explicitly
+verifies acyclicity before using the recurrence.
+
+\section{When to Check: Versions 7 and 8}
+
+A forest test costs $O(M+E)$ even when it fails.  Testing every search node can
+waste traversal work while many cycles remain; testing only very late can miss
+an inexpensive DP completion.  Two schedules were developed:
+\begin{itemize}
+\item Version 7 uses fixed thresholds.  When the original component has cycle
+      rank $r=e-n+1<3$, it first checks after at least five candidates have
+      disappeared; when $r\ge3$, it first checks only when at most 15
+      candidates remain.  After a failed check it waits for five more
+      disappearances along that branch.
+\item Version 8 sets the first threshold from the component's cycle rank:
+      \[
+      q=\min\{n,\lceil r/2\rceil\},
+      \]
+      and performs the first test after at least $q$ candidates have
+      disappeared.  After a failed test, a descendant is tested only when its
+      incoming branch removed at least two candidates.  A take branch usually
+      removes a pivot and several neighbors; a skip branch removes one vertex
+      and therefore does not immediately trigger another check.
+\end{itemize}
+
+Versions 7 and 8 use the \emph{same} forest-DP substitution and the same
+correctness argument.  They differ only in when the test is attempted.  In
+other words, v8 is a parameter choice inside v7's mechanism, not a new
+algorithm.
+
+The schedule is heuristic.  The cycle rank counts independent cycles, not the
+number of vertices that must be deleted: removing one hub can destroy many
+cycles, while deleting unrelated leaves may destroy none.  The rank is computed
+once per original component and is not recomputed at every state.  Delaying or
+omitting a test cannot lose an optimum; it only leaves more work to exact branch
+and bound.
+
+A concrete limitation of the formula is that $q=n$ when $r\ge 2n-1$.  Then the
+first test is deferred until $C=\varnothing$, so a dense high-rank component gets
+no early forest detection at all.  For example, a 20-vertex component with 100
+edges has $r=81$ and $q=20$.  This is one reason the schedule should be read as
+a heuristic parameter, not an optimal rule.  On some graphs v8 can be slower
+than v7, because the extra checks can cost more than the search they save.
+Correctness is unaffected, because a delayed test only leaves the work to the
+exact search.
+
+\section{Final Algorithm}
+
+Algorithm~\ref{alg:search} shows the final search for one cyclic component.
+The component size $n$ and the first threshold $q$ are fixed before the call.
+Isolated fruits are added to the answer directly and are not part of $C$.
+
+\begin{algorithm}[H]
+\caption{Structural branch and bound (v8, one cyclic component)}
+\label{alg:search}
+\begin{algorithmic}[1]
+\Procedure{Search}{$C,s,S,\mathit{started},\Delta$}
+\If{$s+\operatorname{UB}(C)\le W_{\mathrm{best}}$}\State\Return\EndIf
+\If{$(\neg\mathit{started}\land n-|C|\ge q)\lor(\mathit{started}\land\Delta\ge2)$}
+  \If{$G[C]$ is a forest}
+    \State Solve all residual trees by DP and update the incumbent
+    \State\Return
+  \EndIf
+  \State $\mathit{started}\gets\mathrm{true}$
+\EndIf
+\If{$C=\varnothing$}\State Update incumbent with $(s,S)$; \Return\EndIf
+\State $v\gets$ maximum-degree vertex in $G[C]$
+\State $C'\gets C\setminus(\{v\}\cup N(v))$
+\State \Call{Search}{$C',s+w_v,S\cup\{v\},\mathit{started},|C|-|C'|$}
+\State \Call{Search}{$C\setminus\{v\},s,S,\mathit{started},1$}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\section{Correctness}
+
+\begin{theorem}
+For every valid PTA input, the program outputs a feasible set of maximum
+cardinality; among all such sets it outputs one of minimum total price.
+\end{theorem}
+
+\begin{proof}
+By Lemma~1, maximizing $W$ is equivalent to the required lexicographic
+objective.  For a pivot $v$, every independent set either contains $v$ or does
+not; the take and skip branches therefore partition all feasible completions.
+The matching bound is a valid upper bound by Lemma~2, so a state is discarded
+only when it cannot strictly improve the incumbent.  Component decomposition is
+valid because the score is additive and there are no cross-component edges.
+The tree and forest DPs are exact by induction on subtree height and are invoked
+only after the acyclicity check.  Therefore the search never discards an
+optimal set, and the reconstructed mask is feasible and optimal.  The final
+sorting by ID only changes the output order, not the selected set.
+\end{proof}
+
+\section{Complexity}
+
+Let $K$ be the number of visited search states, $M$ the basket size, and $E$
+the number of represented conflict edges.  The matching bound, the dynamic
+pivot, and a triggered forest check each cost $O(M+E)$ in a conservative bound.
+The total time is therefore $O(K(M+E))$, with $K=O(2^M)$ in the worst case.
+
+The adjacency matrix uses $O(M^2)$ space and the recursion $O(M)$ stack space;
+with $M\le100$ the dense array is small and two 64-bit words cover all
+candidates.  The worst case remains exponential, but the pruning and structural
+routines make the PTA limits comfortable.
+
+\chapter{Testing Results}\label{ch:testing}
+\section{Test Cases and Input Data}
+
+The cases cover the PTA sample, boundary sizes, the main graph shapes, the
+lexicographic objective, outside-basket warnings, and output formatting.
+Table~\ref{tab:tests} lists them.  The two large cases are constructed as
+follows:
+\begin{itemize}
+\item \textbf{K14}: all $\binom{14}{2}=91$ pairs are warnings; prices are
+      1, 2, \ldots, 14.  The optimum is the single cheapest fruit.
+\item \textbf{Path100}: warnings form the path
+      $001-002-\cdots-099-100$, plus the outside warning \code{001 999};
+      odd IDs have price 1 and even IDs have price 100.  The unique optimum is
+      the 50 odd IDs, with total price 50.
+\end{itemize}
+The other cases are small enough to be read directly from their descriptions.
+
+\begin{table}[H]\centering\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\caption{Test cases and results.  ``same'' means the actual output was
+byte-for-byte identical to the expected output.}\label{tab:tests}
+\begin{tabular}{@{}c L{2.9cm} c L{4.1cm} L{4.1cm} c@{}}
+\toprule
+No. & Purpose & $N/M$ & Expected (count / IDs / price) & Actual & Result\\
+\midrule
+1 & PTA sample; isolated fruits 019/020 & 16/20 &
+\texttt{12 / 002 004 006 008 009 014 015 016 017 018 019 020 / 239} & same & Pass\\
+2 & Single fruit; outside tip & 1/1 &
+\texttt{1 / 001 / 5} & same & Pass\\
+3 & All isolated; every fruit selected & 3/5 &
+\texttt{5 / 001 002 003 004 005 / 150} & same & Pass\\
+4 & Complete $K_4$; count 1, cheapest & 6/4 &
+\texttt{1 / 001 / 10} & same & Pass\\
+5 & Path with cheap middle; count first & 2/3 &
+\texttt{2 / 001 003 / 200} & same & Pass\\
+6 & Path; same count, lower price & 3/4 &
+\texttt{2 / 001 004 / 2} & same & Pass\\
+7 & Two disjoint edges; components & 2/4 &
+\texttt{2 / 001 003 / 4} & same & Pass\\
+8 & 4-cycle; same count, lower price & 4/4 &
+\texttt{2 / 001 003 / 4} & same & Pass\\
+9 & Star; leaves beat the centre & 3/4 &
+\texttt{3 / 002 003 004 / 60} & same & Pass\\
+10 & Leading zeros 010 and 100 & 1/2 &
+\texttt{2 / 010 100 / 12} & same & Pass\\
+11 & $K_{14}$; 91 tips, dense & 91/14 &
+\texttt{1 / 001 / 1} & same & Pass\\
+12 & Path100; max $N=M=100$ & 100/100 &
+\texttt{50 / 001 003 ... 097 099 / 50} & same & Pass\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Measurement Method}
+
+The tests were run on Windows with gcc 15.2.0 (MinGW-w64), using
+\code{gcc -O2 -std=c99}.  Each case was run as a separate process with the test
+input on standard input.  The output was compared with the expected output, and
+a checker verified:
+\begin{itemize}
+\item the first line equals the number of IDs on the second line;
+\item the IDs are sorted, unique, and present in the basket;
+\item no forbidden pair is selected;
+\item the third line equals the sum of the selected prices;
+\item the count and price equal the expected optimum.
+\end{itemize}
+
+\section{Sample Run}
+
+The exact output for the PTA sample is shown below.  It matches the required
+format: three lines, one space between IDs, no trailing space.
+\begin{verbatim}
+12
+002 004 006 008 009 014 015 016 017 018 019 020
+239
+\end{verbatim}
+
+\section{Additional Automated Tests}
+
+Two repository scripts provide broader coverage:
+\begin{itemize}
+\item \code{test_random.py} generates 225 random small cases, computes the
+      optimum by enumerating all subsets, and checks every version.  The final
+      program and all earlier versions pass.
+\item \code{test_special.py} checks five special cases: objective priority,
+      multiple optima, dirty input (outside tips and a duplicate tip), multiple
+      components, and a maximum-size case with 50 disjoint edges.  All versions
+      pass.  The multiple-optima case is stricter than the PTA guarantee, which
+      says the answer is unique; it verifies that any optimal set is accepted
+      by the checker.
+\end{itemize}
+In total, the final program passed the 12 hand-written cases, the 225 random
+cases, and the 5 special cases.  The sample output and the formatting checks
+also passed.
+
+\section{Performance Observation}
+
+Table~\ref{tab:perf} gives an illustrative single-run measurement of the
+internal solve time for the final program and the v2 baseline.  It is not a
+benchmark suite; it only shows the effect of the structural optimizations.
+\begin{table}[H]\centering\small
+\caption{Illustrative internal solve time on the test machine (one run).}
+\label{tab:perf}
+\begin{tabular}{@{}lrr@{}}\toprule
+Case & v2 baseline (ms) & v8 final (ms)\\\midrule
+Path100 & 6.44 & 0.0016\\
+Cycle100 & 10.93 & 0.0035\\
+$K_{14}$ & 0.0024 & 0.0034\\
+\bottomrule\end{tabular}
+\end{table}
+The path and cycle cases show the benefit of tree and residual-forest DP: the
+baseline still branches, while the final program finishes the acyclic remainder
+directly.  The tiny $K_{14}$ case shows the opposite trade-off: the graph is so
+easy that the extra forest checks can cost slightly more than the search they
+save.  This is a performance detail, not a correctness issue, and it is the same
+reason the v8 schedule should not be described as universally better than v7.
+
+\chapter{Analysis and Comments}\label{ch:analysis}
+
+\section{Why the Algorithm Is Exact}
+
+The proof has four independent parts.  The score encoding turns the two
+objectives into one integer.  The take/skip branches partition all independent
+sets.  The matching bound is a valid upper bound, so pruning never removes a
+state that could improve the incumbent.  Component decomposition and tree or
+forest DP are exact on their subproblems.  The forest check is separated from
+the DP: the check may be delayed, but when it succeeds the DP is exact, and when
+it fails the ordinary search continues.
+
+This separation is the main design idea.  A heuristic trigger is allowed to
+affect speed only; it cannot affect the answer.
+
+\section{Why the Optimizations Matter}
+
+The matching bound discards score combinations that cannot beat the incumbent.
+Component decomposition avoids the Cartesian product of independent local
+choices.  The dynamic pivot removes a high-degree vertex and many neighbors in
+the take branch.  Tree DP replaces enumeration on a path, star, or tree, and
+residual-forest DP extends the same idea to the acyclic remainder created by
+branching.
+
+On the 100-vertex path and cycle, the final program solves the problem in a few
+microseconds of internal time, while the baseline branches for milliseconds.
+The improvement is not a constant-factor tweak; it changes the work required
+for a whole tractable subproblem.
+
+\section{PTA-Specific Pitfalls}
+
+\begin{enumerate}
+\item \textbf{Outside warnings (defensive).}  A warning whose endpoint is not
+      in the basket is ignored.  The PTA sample does not exercise this rule
+      (the lines \code{020 99} and \code{019 99} are fruit lines), but the
+      special tests do.  Ignoring such a warning is safe, because a fruit that
+      is not in the basket cannot be selected.
+\item \textbf{Count before price.}  A cheap fruit may block two expensive
+      fruits.  The score $B-p_v$ makes the count dominant; do not sort by price
+      or use a price-only greedy rule.
+\item \textbf{Unique answer.}  The problem guarantees a unique optimum, but the
+      program still implements the price tie-break.  It does not need to
+      enumerate all optimal sets.
+\item \textbf{Three-digit IDs.}  Print with \texttt{\%03d}; sort numerically, not
+      lexicographically.  The leading-zero case \code{010}/\code{100} checks
+      this.
+\item \textbf{Output format.}  Exactly three lines; IDs in increasing order;
+      exactly one space between IDs; no trailing space.  The count must equal
+      the number of IDs, and the price must equal their sum.
+\item \textbf{Maximum size.}  $M=100$ fits in two 64-bit masks.  The maximum
+      total price is 100000, so $B=100001$ is large enough; the maximum score
+      fits in a signed 32-bit integer.
+\item \textbf{Isolated fruits.}  A fruit with no warning is always selected,
+      because its weight is positive.  The program adds isolated fruits
+      directly and removes them from the search.
+\item \textbf{Input assumptions.}  The statement says there are no duplicate
+      tips.  The program assumes a simple graph; it does not specially handle
+      self-loops, which the statement does not define.
+\end{enumerate}
+
+\section{Limitations}
+
+The worst case is still exponential: maximum independent set is NP-hard, and an
+adversarial graph with $M=100$ can make branch and bound explore many states.
+The program is exact, so it will eventually finish, but a malicious test could
+be slow.  The forest-detection schedule is a heuristic; its parameters were
+chosen to work well on the tests, and v8 can be slower than v7 on some graphs,
+especially when branching is already cheap.  This is a performance trade-off,
+not a correctness trade-off.  The v7 schedule is a simpler alternative if
+robustness across graphs is more important than aggregate speed.
+
+\section{Lessons Learned}
+
+\begin{itemize}
+\item Start from a correct baseline and add one optimization at a time; test
+      after each change.
+\item Use brute force on small random cases to validate the objective and the
+      tie-break, not just the sample.
+\item Keep the exact structural solver separate from the heuristic that decides
+      when to call it.  This makes the correctness argument independent of the
+      tuning.
+\item Output formatting is part of the PTA contract: one extra character can
+      fail an otherwise correct solution.
+\item Performance measurements are useful, but a single observation on one
+      machine should not be over-interpreted.
+\end{itemize}
+
+\section{Summary}
+
+The final program solves the PTA Safe Fruit problem exactly.  It encodes the
+count-first, price-second objective as one integer, prunes with a matching
+bound, decomposes connected components, and uses tree and residual-forest DP to
+avoid branching on acyclic structure.  It handles the PTA-specific cases:
+defensive handling of outside warnings, leading-zero IDs, maximum size, and the
+exact output format.
+
+The program passed the sample, 12 designed cases, 225 random brute-force cases,
+and 5 special cases.  Versions 7 and 8 share the same forest-DP mechanism; v8
+only changes when the forest check is attempted.  The v8 schedule is faster in
+aggregate on the tested cases, but it is a parameter choice, not a universally
+better algorithm, and some graphs can regress.  For the PTA assignment, the
+final program is exact, well tested, and comfortably fast for $M\le100$.
+
+\chapter*{References}
+\addcontentsline{toc}{chapter}{References}
+\begin{enumerate}[label={[\arabic*]}]
+  \item \textit{Safe Fruit}, PTA programming assignment, Zhejiang University.
+  \item T. H. Cormen, C. E. Leiserson, R. L. Rivest, and C. Stein.
+        \textit{Introduction to Algorithms}, 4th edition. MIT Press, 2022.
+\end{enumerate}
+
+\appendix
+\chapter{Source Location}
+
+The final program and the development versions are available at
+\begin{center}
+\url{https://github.com/blxrua/ads_project3_ads}\quad (commit \code{d2614e2}).
+\end{center}
+The report source, compiled PDF, and the 12 hand-written test inputs are
+included in the repository root and the \code{tests/} directory.
+The relevant files are:
+\begin{itemize}
+\item \code{report_safe_fruit.tex} and \code{report_safe_fruit.pdf}: this report;
+\item \code{v8_cycle_tree_dp.c}: the final program;
+\item \code{v1_steps123.c} through \code{v7_cycle_tree_dp.c}: development
+      history used for regression testing;
+\item \code{test_random.py}: 225 random cases checked against brute force;
+\item \code{test_special.py}: five special cases, including dirty input and the
+      maximum-size case;
+\item \code{sample.in}: the PTA sample input.
+\end{itemize}
+
+The final program was compiled with
+\begin{verbatim}
+gcc -O2 -std=c99 -o safe_fruit v8_cycle_tree_dp.c
+\end{verbatim}
+and run with the input on standard input.  The optional timing build uses
+\code{-DBENCH}; it is not needed for the PTA submission.
+
+\end{document}

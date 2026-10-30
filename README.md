@@ -1,5 +1,11 @@
 # Safe Fruit（安全水果）八版本实现
 
+## 报告
+
+- `report_safe_fruit.tex` / `report_safe_fruit.pdf`：PTA 作业报告
+  （Chapter 1–4、References、Appendix）。
+- `tests/`：报告中使用的 12 组手写测试输入，以及运行说明。
+
 ## 1. 问题建模
 
 - 水果 = 顶点，一条“不能同吃”的提示 = 一条无向边。
