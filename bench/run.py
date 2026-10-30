@@ -1,6 +1,6 @@
-"""Run a benchmark suite: four versions, in-program timer, oracle labels.
+"""Run a benchmark suite: eight versions, in-program timer, oracle labels.
 
-Builds v1..v4 with -DBENCH, runs each instance, checks every answer against
+Builds selected versions with -DBENCH, runs each instance, checks every answer against
 the suite manifest, and writes:
 
     bench/results_<suite>.csv   per instance / version
@@ -12,7 +12,7 @@ medians are reported, plus the DFS node count.
 
 Usage:
     py -3.12 bench/run.py [--suite light|full] [--repeat N] [--no-build]
-                          [--filter TEXT] [--sample N] [--versions 1,2,3,4]
+                          [--filter TEXT] [--sample N] [--versions 1,2,3,4,5,6,7,8]
 """
 
 import argparse
@@ -36,8 +36,12 @@ SOURCES = {
     2: "v2_full.c",
     3: "v3_ablate_step4.c",
     4: "v4_ablate_step5.c",
+    5: "v5_static_degree.c",
+    6: "v6_tree_dp.c",
+    7: "v7_cycle_tree_dp.c",
+    8: "v8_cycle_tree_dp.c",
 }
-ALL_VERSIONS = [1, 2, 3, 4]
+ALL_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8]
 
 
 def build():
@@ -150,7 +154,7 @@ def main():
     ap.add_argument("--timeout", type=float, default=5.0,
                     help="kill one run after this many seconds (censored)")
     ap.add_argument("--suite", choices=["light", "full"], default="light")
-    ap.add_argument("--versions", default="1,2,3,4",
+    ap.add_argument("--versions", default="1,2,3,4,5,6,7,8",
                     help="comma-separated subset, e.g. 1,4 for a pilot")
     ap.add_argument("--sample", type=int, default=0,
                     help="evenly spaced subset of N instances (0 = all)")

@@ -1,9 +1,9 @@
 """
-Performance comparison of the five Safe Fruit versions on large sparse graphs.
+Performance comparison of the eight Safe Fruit versions on large sparse graphs.
 
 Every case has M <= 100 fruits and N <= 100 tips (the limits of the problem).
 The script regenerates all cases in memory, times each executable and checks
-that all five versions agree on (count, total price).
+that all eight versions agree on (count, total price).
 
 Usage:  python bench.py
 """
@@ -15,7 +15,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe", "v5.exe"]
+EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe", "v5.exe", "v6.exe", "v7.exe", "v8.exe"]
 rng = random.Random(20261028)
 
 
@@ -114,7 +114,7 @@ def main():
         cnt, price = answers.pop()
         print("%-24s %s   %-5d  %d" %
               (name, " ".join("%8.3fs" % t for t in row), cnt, price))
-    print("\nAll five versions agree on every case.")
+    print("\nAll eight versions agree on every case.")
 
 
 if __name__ == "__main__":

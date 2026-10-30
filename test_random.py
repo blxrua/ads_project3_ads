@@ -1,5 +1,5 @@
 """
-Differential tester for the five Safe Fruit versions.
+Differential tester for the eight Safe Fruit versions.
 
 For every generated case:
   * brute force (enumerate all subsets) computes the optimal (count, price);
@@ -9,7 +9,7 @@ For every generated case:
       - reported count / total price match the brute-force optimum.
 
 Usage:  python test_random.py
-(the five .exe files must be in the same directory)
+(the eight .exe files must be in the same directory)
 """
 
 import os
@@ -17,7 +17,7 @@ import random
 import subprocess
 import sys
 
-EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe", "v5.exe"]
+EXES = ["v1.exe", "v2.exe", "v3.exe", "v4.exe", "v5.exe", "v6.exe", "v7.exe", "v8.exe"]
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 

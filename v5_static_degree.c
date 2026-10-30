@@ -1,5 +1,4 @@
-/* Version 5: backtracking + matching upper bound (steps 1-3).
-   No component decomposition; pivot follows one initial degree sort. */
+/* 版本 5：回溯前按初始冲突数排好顺序，之后按这个顺序选点。 */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -84,7 +83,7 @@ static int upper_bound(const uint64_t cand[2]) {
 /* cand: fruits compatible with every chosen fruit. */
 static void dfs(uint64_t cand[2], int curScore) {
     uint64_t nxt[2];
-    int i, v = -1;
+    int v = -1;
 
 #ifdef BENCH
     ++bench_nodes;
@@ -101,9 +100,13 @@ static void dfs(uint64_t cand[2], int curScore) {
         return;
     }
 
-    /* Static order: original degree descending, computed once before search. */
-    for (i = 0; i < M; ++i)
-        if (mask_has(cand, boundOrder[i])) { v = boundOrder[i]; break; }
+    /* 只使用回溯前排好的顺序，不重新计算当前候选点的冲突数。 */
+    for(int i=0;i<M;i++){
+        if(mask_has(cand,boundOrder[i])){
+            v=boundOrder[i];
+            break;
+        }
+    }
 
     /* take v */
     mask_add(curSet, v);
@@ -156,7 +159,7 @@ int main(void) {
         adjList[v][deg[v]++] = u;
     }
 
-    /* high degree first: tighter greedy matching */
+    /* 按初始冲突数排序；v5 回溯选点也沿用这个顺序。 */
     for (i = 0; i < M; ++i) boundOrder[i] = i;
     for (i = 1; i < M; ++i) {
         x = boundOrder[i];
