@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+/* v5 decomposes connected components, then keeps the static initial-degree order. */
+
 #ifdef BENCH
 #include <stdlib.h>
 #include <windows.h>
@@ -26,6 +28,7 @@ uint64_t adjBits[MAXM][2];
 int adjList[MAXM][MAXM];
 int deg[MAXM];
 int boundOrder[MAXM];
+int visited[MAXM];
 
 uint64_t curSet[2], bestSet[2];
 int bestScore;
@@ -121,6 +124,44 @@ static void dfs(uint64_t cand[2], int curScore) {
     dfs(cand, curScore);
 }
 
+/* 按原始图的连通分量分别搜索；每个分量内部仍使用静态排序。 */
+static void solve_components(const uint64_t allCand[2], uint64_t answer[2]) {
+    int i, j, s, u, v;
+    int stack[MAXM], top;
+    uint64_t compCand[2];
+
+    for (i = 0; i < M; ++i) visited[i] = 0;
+
+    for (s = 0; s < M; ++s) {
+        if (!mask_has(allCand, s) || visited[s]) continue;
+
+        top = 0;
+        stack[top++] = s;
+        visited[s] = 1;
+        mask_clear(compCand);
+
+        while (top > 0) {
+            u = stack[--top];
+            mask_add(compCand, u);
+
+            for (j = 0; j < deg[u]; ++j) {
+                v = adjList[u][j];
+                if (mask_has(allCand, v) && !visited[v]) {
+                    visited[v] = 1;
+                    stack[top++] = v;
+                }
+            }
+        }
+
+        bestScore = 0;
+        mask_clear(curSet);
+        mask_clear(bestSet);
+        dfs(compCand, 0);
+        answer[0] |= bestSet[0];
+        answer[1] |= bestSet[1];
+    }
+}
+
 int main(void) {
     static int tipA[MAXM], tipB[MAXM];
     int chosen[MAXM];
@@ -196,27 +237,17 @@ int main(void) {
             cand[1] = cand0[1];
             answer[0] = iso[0];
             answer[1] = iso[1];
-            bestScore = 0;
-            mask_clear(curSet);
-            mask_clear(bestSet);
             bench_nodes = 0;
 
             t0 = bench_now();
-            dfs(cand, 0);
+            solve_components(cand, answer);
             t1 = bench_now();
 
-            answer[0] |= bestSet[0];
-            answer[1] |= bestSet[1];
             fprintf(stderr, "BENCH %.6f %.0f\n", t1 - t0, (double)bench_nodes);
         }
     }
 #else
-    bestScore = 0;
-    mask_clear(curSet);
-    mask_clear(bestSet);
-    dfs(cand, 0);
-    answer[0] |= bestSet[0];
-    answer[1] |= bestSet[1];
+    solve_components(cand, answer);
 #endif
 
     cn = 0;

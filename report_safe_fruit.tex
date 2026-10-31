@@ -545,22 +545,22 @@ The same-run results are in Table~\ref{tab:branch-perf}.
 \label{tab:branch-perf}
 \begin{tabular}{@{}lrrrr@{}}\toprule
 Version & Median & p95 & Capped sum (s) & Timeouts\\\midrule
-v2: dynamic degree & 0.056 & 23.594 & 14.880 & 0\\
-v3: fixed index & 0.038 & 221.687 & 136.613 & 8\\
-v5: static degree order & 0.098 & 250.664 & 240.749 & 57\\
+v2: dynamic degree & 0.0650 & 25.9764 & 16.712 & 0\\
+v3: fixed index & 0.0416 & 243.8242 & 151.284 & 9\\
+v5: static degree order & 0.0452 & 84.1368 & 62.910 & 4\\
 \bottomrule\end{tabular}
 \end{table}
 
-The v2/v3 pair isolates the pivot rule: both decompose components.  On
-100-fruit banded graphs their medians are 75.230 and 453.555 ms, respectively;
-on 100-fruit paths they are 75.022 and 184.377 ms.  Recomputing degrees can
-cost more on easy graphs, which helps explain v3's lower overall median, but
-v2 avoids the slow tail.  Static presorting gives v5 a useful initial order
-without per-node degree calculations; on 100-fruit trees it takes 3.334 ms,
-compared with v3's 144.816 ms.  As candidates disappear, however, the original
-degree is less informative.  Version 5 also lacks component decomposition,
-unlike v2 and v3.  Its 57 timeouts therefore measure the complete v5 design,
-not the static order in isolation.
+All three versions decompose connected components.  The v2/v5 pair therefore
+compares dynamic and static degree ordering with decomposition held constant;
+v3 uses the fixed input-index order.  On 100-fruit banded graphs, the medians
+are 87.398 ms for v2, 544.483 ms for v3, and 373.276 ms for v5.  On the
+100-fruit components family, v5 is slightly faster than v2 (0.0330 versus
+0.0549 ms).  Across the full suite, v5 has a lower overall median than v2,
+but a higher p95 and four timeouts, while v2 has none.  Static ordering can
+work well on simpler or disconnected graphs; as candidates disappear in a
+large connected graph, initial degrees become less informative and dynamic
+selection follows the remaining conflicts more closely.
 
 \subsection{Connected-Component Decomposition: v1--v4}
 
@@ -583,17 +583,16 @@ v2: dynamic & yes & 0.083 & 150.025 & 0\\
 The components family consists of disconnected subgraphs.  Solving each one
 separately removes combinations of independent choices, giving a large gain
 in both controlled pairs.  A path is already one connected component, so its
-paired times remain close.  This also explains why v5 can lose badly on the
-components family despite its presorting.
+paired times remain close.
 
 \subsection{Original Trees: v2 and v6}
 
-Version 6 adds tree DP to v2.  It recognizes an original component with
-$e=n-1$ and solves it by the take/skip recurrence before any branching.
-In the v2/v6/v7/v8 run, the median for 100-fruit paths falls from 72.372
-to 0.00385 ms, and for 100-fruit trees from 3.239 to 0.00570 ms.  A 100-fruit
-cycle is still cyclic at the start: v2 takes 51.448 ms and v6 takes
-52.384 ms.  This comparison locates the gain specifically in original tree
+Version 6 adds tree DP to v2.  It recognizes components with $e=n-1$
+and solves them by the take/skip recurrence before any branching.
+In the updated v2/v5/v6/v7/v8 run, the median for 100-fruit paths falls from
+80.479 to 0.0046 ms, and for 100-fruit trees from 4.521 to 0.0071 ms.  A
+100-fruit cycle is still cyclic at the start: v2 takes 69.597 ms and v6 takes
+67.204 ms.  This comparison locates the gain specifically in original tree
 components.
 
 \subsection{Cycles That Become Forests: v6 and v7}
@@ -607,8 +606,8 @@ candidates must disappear before the next test on that branch.
 
 In Table~\ref{tab:forest-perf}, v6 and v7 use the same pivot, bound, component
 decomposition, and original-tree DP.  Thus the cycle and banded gains measure
-the residual-forest mechanism.  The original 100-fruit cycles take 52.384 ms
-in v6 and 0.0312 ms in v7; banded graphs take 61.105 and 0.0272 ms.
+the residual-forest mechanism.  The original 100-fruit cycles take 67.204 ms
+in v6 and 0.0423 ms in v7; banded graphs take 86.048 and 0.0381 ms.
 
 \subsection{Choosing the Check Time: v7 and v8}
 
@@ -626,19 +625,20 @@ removes its neighbors too, whereas skipping it removes only one.
 \label{tab:forest-perf}
 \begin{tabular}{@{}lrrrrr@{}}\toprule
 Version & p95 & Capped sum (s) & Path100 & Cycle100 & Banded100\\\midrule
-v2 & 20.662 & 13.066 & 72.372 & 51.448 & 59.393\\
-v6 & 7.602 & 8.182 & 0.00385 & 52.384 & 61.105\\
-v7 & 1.566 & 1.215 & 0.00410 & 0.0312 & 0.0272\\
-v8 & 0.527 & 0.589 & 0.00395 & 0.0108 & 0.0096\\
+v2 & 25.1449 & 16.721 & 80.4787 & 69.5972 & 101.7803\\
+v5 & 83.3704 & 62.763 & 196.4078 & 236.3376 & 427.0492\\
+v6 & 10.5094 & 11.041 & 0.0046 & 67.2045 & 86.0485\\
+v7 & 2.2941 & 1.612 & 0.0047 & 0.0423 & 0.0381\\
+v8 & 0.7945 & 0.773 & 0.0047 & 0.0147 & 0.0141\\
 \bottomrule\end{tabular}
 \end{table}
 
 Version 8 changes only the forest-check schedule, and its cumulative solve
-time falls from v7's 1.215 s to 0.589 s.  The gain is graph-dependent:
-100-fruit core-periphery graphs rise from 0.0467 to 0.0825 ms because extra
-checks can cost more than they save.  All four versions in this run have zero
-timeouts.  The schedule changes running time only; both versions use the same
-exact DP after a successful forest test.
+time falls from v7's 1.612 s to 0.773 s.  The gain is graph-dependent:
+100-fruit core-periphery graphs rise from 0.0546 to 0.0967 ms because extra
+checks can cost more than they save.  Four three-second timeouts occurred,
+all in v5; v2 and v6--v8 completed every case.  The schedule changes running
+time only; both versions use the same exact DP after a successful forest test.
 
 \chapter{Analysis and Comments}\label{ch:analysis}
 
